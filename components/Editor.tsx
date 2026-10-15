@@ -5,31 +5,17 @@ import Link from 'next/link';
 import { useLanguage } from './LanguageContext';
 import { markdownToHtml, SAMPLE_MARKDOWN_PRESETS } from '@/lib/markdown-to-html';
 import { renderLatexHtml } from '@/lib/latex-to-omml';
-import { htmlToMarkdown } from '@/lib/docx-import';
+import { importDocxFile, htmlToMarkdown } from '@/lib/docx-import';
 import { WordFormattingOptions, ViewMode } from './WordRibbon';
 import { WordRuler } from './WordRuler';
-import dynamic from 'next/dynamic';
-import type { EigenDocxEditorHandle } from './EigenDocxEditor';
-
-const DocumentStatsModal = dynamic(() => import('./DocumentStatsModal').then(m => m.DocumentStatsModal), { ssr: false });
-const FindReplaceModal = dynamic(() => import('./FindReplaceModal').then(m => m.FindReplaceModal), { ssr: false });
-const InsertImageModal = dynamic(() => import('./InsertImageModal').then(m => m.InsertImageModal), { ssr: false });
-const InsertLinkModal = dynamic(() => import('./InsertLinkModal').then(m => m.InsertLinkModal), { ssr: false });
-const SymbolPaletteModal = dynamic(() => import('./SymbolPaletteModal').then(m => m.SymbolPaletteModal), { ssr: false });
-const WatermarkModal = dynamic(() => import('./WatermarkModal').then(m => m.WatermarkModal), { ssr: false });
-
-const EigenDocxEditor = dynamic(
-  () => import('./EigenDocxEditor').then(mod => mod.EigenDocxEditor),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex-1 w-full min-h-[600px] flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-2" />
-        <span className="text-xs font-semibold">Initializing Word DOCX Engine...</span>
-      </div>
-    ),
-  }
-);
+import { DocumentStatsModal } from './DocumentStatsModal';
+import { FindReplaceModal } from './FindReplaceModal';
+import { InsertImageModal } from './InsertImageModal';
+import { InsertLinkModal } from './InsertLinkModal';
+import { SymbolPaletteModal } from './SymbolPaletteModal';
+import { WatermarkModal } from './WatermarkModal';
+import { EigenDocxEditor, EigenDocxEditorHandle } from './EigenDocxEditor';
+import { markdownToDocxBytes, downloadDocxBuffer } from '@/lib/docx-export';
 import { bufferToBase64, base64ToBuffer, saveUserDocument } from '@/lib/supabase';
 import { useSession, deductCredit } from '@/lib/guest-session';
 import { useTheme } from '@/lib/theme';
@@ -109,8 +95,8 @@ export const Editor: React.FC<EditorProps> = ({
     zoomLevel: 100,
   });
 
-  // Default viewMode is realistic A4 Print Layout for instant, responsive rendering
-  const [viewMode, setViewMode] = useState<ViewMode>('print');
+  // Default viewMode is genuine 'docx' EigenPal editor engine!
+  const [viewMode, setViewMode] = useState<ViewMode>('docx');
   const [history, setHistory] = useState<string[]>([markdown]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -177,10 +163,9 @@ export const Editor: React.FC<EditorProps> = ({
         }
       }
 
-      if (viewMode === 'docx' && markdown && !docxBytes) {
+      if (markdown && !docxBytes) {
         try {
           setIsInitializingDocx(true);
-          const { markdownToDocxBytes } = await import('@/lib/docx-export');
           const bytes = await markdownToDocxBytes(markdown);
           if (active) {
             setDocxBytes(bytes);
@@ -202,7 +187,7 @@ export const Editor: React.FC<EditorProps> = ({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docxBase64, viewMode]);
+  }, [docxBase64]);
 
   // Unsaved changes warning before unload
   useEffect(() => {
@@ -310,7 +295,6 @@ export const Editor: React.FC<EditorProps> = ({
       if (eigenEditorRef.current) {
         const buffer = await eigenEditorRef.current.saveDocument();
         if (buffer) {
-          const { downloadDocxBuffer } = await import('@/lib/docx-export');
           const filename = `${documentTitle.replace(/[^a-zA-Z0-9_\-\u0600-\u06FF]/g, '_')}.docx`;
           downloadDocxBuffer(buffer, filename);
           deductCredit();
@@ -611,7 +595,6 @@ export const Editor: React.FC<EditorProps> = ({
 
       // Also parse markdown summary for search and stats
       try {
-        const { importDocxFile } = await import('@/lib/docx-import');
         const result = await importDocxFile(file);
         updateMarkdownWithHistory(result.markdown);
         onChangeTitle(result.title);
@@ -659,7 +642,6 @@ export const Editor: React.FC<EditorProps> = ({
       updateMarkdownWithHistory(preset.markdown);
       onChangeTitle(direction === 'rtl' ? preset.titleAr : preset.titleEn);
       try {
-        const { markdownToDocxBytes } = await import('@/lib/docx-export');
         const bytes = await markdownToDocxBytes(preset.markdown);
         setDocxBytes(bytes);
         if (eigenEditorRef.current) {
